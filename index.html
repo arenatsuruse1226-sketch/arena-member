@@ -562,6 +562,8 @@
 
       // 送信データを作成
       const formData = new FormData(form);
+      const machineNumber = formData.get('machineNumber') || '';
+      formData.set('台番号', machineNumber);
       const url = "https://script.google.com/macros/s/AKfycbzGNBX6C379fO3CfhdQzQMCTiIOdx5E9tM7gVXocWpcRWYPNw_v4OlYz6ydlfDRw1vr/exec";
 
       try {
