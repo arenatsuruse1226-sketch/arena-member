@@ -77,6 +77,14 @@
       max-width: 640px;
     }
 
+    .brand-mark img {
+      display: block;
+      width: 100%;
+      height: auto;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
     .form-body {
       padding: 24px 24px 20px;
     }
@@ -279,7 +287,9 @@
   <div class="form-shell">
 
     <div class="top-banner" style="background: #fff; color: #222; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 0;">
-      <img src="./アリーナロゴ.jpg.jpg" alt="ARENAロゴ" style="width:100%; display:block; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;">
+      <div class="brand-mark">
+        <img src="./arena_logo.jpg" alt="ARENAロゴ">
+      </div>
       <div style="padding: 0 18px 18px 18px;">
         <h1 style="font-size:2rem; font-weight:bold; margin:10px 0 8px 0; color:#3a1a00;">アリーナ鶴瀬店<br>WEB会員登録</h1>
         <div style="font-size:1rem; margin-bottom:10px; color:#222;">ご来店ありがとうございます。</div>
