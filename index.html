@@ -589,14 +589,36 @@
 
       // 送信データを作成
       const formData = new FormData(form);
-      const machineNumber = formData.get('machineNumber') || '';
-      formData.set('台番号', machineNumber);
-      const url = "https://script.google.com/macros/s/AKfycbzGNBX6C379fO3CfhdQzQMCTiIOdx5E9tM7gVXocWpcRWYPNw_v4OlYz6ydlfDRw1vr/exec";
+      const machineNumber = (formData.get('machineNumber') || '').toString();
+      const birthEraValue = (formData.get('birthEra') || '').toString();
+      const birthYearValue = (formData.get('birthYear') || '').toString();
+      const birthMonthValue = (formData.get('birthMonth') || '').toString();
+      const birthDayValue = (formData.get('birthDay') || '').toString();
+      const birthDateText = [birthEraValue, birthYearValue, birthMonthValue, birthDayValue].filter(Boolean).join('-');
+      const agreedText = form.agree.checked ? 'はい' : 'いいえ';
+
+      const payload = new URLSearchParams(formData);
+      payload.set('submittedAt', new Date().toISOString());
+      payload.set('登録日時', new Date().toLocaleString('ja-JP'));
+      payload.set('姓', form.familyName.value.trim());
+      payload.set('名', form.givenName.value.trim());
+      payload.set('フリガナ(姓)', form.familyNameKana.value.trim());
+      payload.set('フリガナ(名)', form.givenNameKana.value.trim());
+      payload.set('郵便番号', form.postalCode.value.trim());
+      payload.set('住所', form.address.value.trim());
+      payload.set('電話番号', form.phone.value.trim());
+      payload.set('性別', form.gender.value);
+      payload.set('生年月日', birthDateText);
+      payload.set('暗証番号', form.pin.value.trim());
+      payload.set('DM', form.dm.value);
+      payload.set('台番号', machineNumber);
+      payload.set('利用規約同意', agreedText);
+      const url = "https://script.google.com/macros/s/AKfycbzKIDbjhMiN5bR9z9z69i_PWa_jNdMboQNh6nvaQs97nIlo-RfktykSW8F4v3d0R5Mc/exec";
 
       try {
         const response = await fetch(url, {
           method: 'POST',
-          body: new URLSearchParams(formData)
+          body: payload
         });
 
         const result = await response.json();
