@@ -134,7 +134,6 @@
       display: flex;
       flex-direction: column;
     }
-
     .field-block label {
       font-size: 13px;
       font-weight: 700;
@@ -310,7 +309,7 @@
   <div class="form-shell">
 
     <div class="top-banner" style="background: #fff; color: #222; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 0;">
-      <img src="./アリーナロゴ.jpg.jpg" alt="ARENAロゴ" style="width:100%; display:block; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;">
+      <img src="./arena-logo.jpg" alt="ARENAロゴ" style="width:100%; display:block; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;">
       <div style="padding: 0 18px 18px 18px;">
         <h1 style="font-size:2rem; font-weight:bold; margin:10px 0 8px 0; color:#3a1a00;">アリーナ鶴瀬店<br>WEB会員登録</h1>
         <div style="font-size:1rem; margin-bottom:10px; color:#222;">ご来店ありがとうございます。</div>
@@ -474,6 +473,7 @@
     const successMessage = document.getElementById('successMessage');
     const postalCodeInput = form.querySelector('input[name="postalCode"]');
     const addressInput = form.querySelector('input[name="address"]');
+    const submitEndpoint = 'https://script.google.com/macros/s/AKfycbwUhHf5onK-4-qkOBval81IyJuCS62QSPyeHISeOhANLL2DG425h23rVHx1ud4UTaz0/exec';
 
     postalCodeInput.addEventListener('input', async function () {
       const normalized = this.value.replace(/\D/g, '');
@@ -580,74 +580,41 @@
         return;
       }
 
-      // 送信ボタンを無効化し、送信中表示にする
-      const submitBtn = form.querySelector('.submit-btn');
-      const originalBtnText = submitBtn.textContent;
-      submitBtn.textContent = '送信中...';
-      submitBtn.disabled = true;
-      successMessage.style.display = 'none';
-
-      // 送信データを作成
-      const formData = new FormData(form);
-      const machineNumber = (formData.get('machineNumber') || '').toString();
-      const birthEraValue = (formData.get('birthEra') || '').toString();
-      const birthYearValue = (formData.get('birthYear') || '').toString();
-      const birthMonthValue = (formData.get('birthMonth') || '').toString();
-      const birthDayValue = (formData.get('birthDay') || '').toString();
-      const birthDateText = [birthEraValue, birthYearValue, birthMonthValue, birthDayValue].filter(Boolean).join('-');
-      const agreedText = form.agree.checked ? 'はい' : 'いいえ';
-
-      const payload = new URLSearchParams(formData);
-      payload.set('submittedAt', new Date().toISOString());
-      payload.set('登録日時', new Date().toLocaleString('ja-JP'));
-      payload.set('姓', form.familyName.value.trim());
-      payload.set('名', form.givenName.value.trim());
-      payload.set('フリガナ(姓)', form.familyNameKana.value.trim());
-      payload.set('フリガナ(名)', form.givenNameKana.value.trim());
-      payload.set('郵便番号', form.postalCode.value.trim());
-      payload.set('住所', form.address.value.trim());
-      payload.set('電話番号', form.phone.value.trim());
-      payload.set('性別', form.gender.value);
-      payload.set('生年月日', birthDateText);
-      payload.set('暗証番号', form.pin.value.trim());
-      payload.set('DM', form.dm.value);
-      payload.set('台番号', machineNumber);
-      payload.set('利用規約同意', agreedText);
-      const url = "https://script.google.com/macros/s/AKfycbzKIDbjhMiN5bR9z9z69i_PWa_jNdMboQNh6nvaQs97nIlo-RfktykSW8F4v3d0R5Mc/exec";
+      const formData = new FormData(this);
+      const payload = {};
+      formData.forEach((value, key) => {
+        payload[key] = value;
+      });
+      payload.agree = this.agree.checked ? '同意' : '';
 
       try {
-        const response = await fetch(url, {
+        const response = await fetch(submitEndpoint, {
           method: 'POST',
-          body: payload
+          body: new URLSearchParams(payload),
         });
-
         const result = await response.json();
 
-        if (result.status === "success") {
-          const familyName = form.familyName.value.trim();
-          const givenName = form.givenName.value.trim();
-          const fullName = [familyName, givenName].filter(Boolean).join(' ');
-          
-          successMessage.textContent = fullName ? fullName + ' 様、仮会員登録を受け付け、データを保存しました！' : '仮会員登録を受け付け、データを保存しました！';
-          successMessage.style.color = 'var(--success)';
-          successMessage.style.background = 'rgba(24, 128, 56, 0.12)';
-          successMessage.style.border = '1px solid rgba(24, 128, 56, 0.24)';
-          successMessage.style.display = 'block';
-          
-          form.reset();
-          addressInput.placeholder = '郵便番号を入力後、続けて番地・建物名をご入力ください';
-        } else {
-          throw new Error(result.message);
+        if (!response.ok || result.status !== 'success') {
+          throw new Error(result.message || '送信中にエラーが発生しました。');
         }
+
+        const familyName = form.familyName.value.trim();
+        const givenName = form.givenName.value.trim();
+        const fullName = [familyName, givenName].filter(Boolean).join(' ');
+        successMessage.textContent = fullName ? fullName + ' 様、会員登録の入力を受け付けました。' : '会員登録の入力を受け付けました。';
+        successMessage.style.color = 'var(--success)';
+        successMessage.style.background = 'rgba(24, 128, 56, 0.12)';
+        successMessage.style.border = '1px solid rgba(24, 128, 56, 0.24)';
+        successMessage.style.display = 'block';
+
+        form.reset();
+        addressInput.placeholder = '郵便番号を入力後、続けて番地・建物名をご入力ください';
       } catch (error) {
-        successMessage.textContent = '通信エラーが発生しました。時間をおいて再度お試しください。';
+        successMessage.textContent = error.message || '送信に失敗しました。再度お試しください。';
+        successMessage.style.display = 'block';
         successMessage.style.color = '#d93025';
         successMessage.style.background = 'rgba(217, 48, 37, 0.12)';
         successMessage.style.border = '1px solid rgba(217, 48, 37, 0.24)';
-        successMessage.style.display = 'block';
-      } finally {
-        submitBtn.textContent = originalBtnText;
-        submitBtn.disabled = false;
       }
     });
   </script>

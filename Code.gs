@@ -11,6 +11,7 @@ function doPost(e) {
 
     const row = buildRow_(data);
     sheet.appendRow(row);
+    pruneExtraColumns_(sheet, headers.length);
 
     return jsonResponse_({
       status: 'success',
@@ -43,7 +44,6 @@ function getTargetSheet_() {
 
 function getHeaders_() {
   return [
-    'submittedAt',
     '登録日時',
     '姓',
     '名',
@@ -57,29 +57,11 @@ function getHeaders_() {
     '暗証番号',
     'DM',
     '台番号',
-    '利用規約同意',
-    'familyName',
-    'givenName',
-    'familyNameKana',
-    'givenNameKana',
-    'postalCode',
-    'phone',
-    'address',
-    'gender',
-    'birthEra',
-    'birthYear',
-    'birthMonth',
-    'birthDay',
-    'pin',
-    'dm',
-    'machineNumber',
-    'agree',
   ];
 }
 
 function buildRow_(data) {
   return [
-    getValue_(data, ['submittedAt']),
     getValue_(data, ['登録日時']),
     getValue_(data, ['姓', 'familyName']),
     getValue_(data, ['名', 'givenName']),
@@ -93,23 +75,6 @@ function buildRow_(data) {
     getValue_(data, ['暗証番号', 'pin']),
     getValue_(data, ['DM', 'dm']),
     getValue_(data, ['台番号', 'machineNumber']),
-    getValue_(data, ['利用規約同意', 'agree']),
-    getValue_(data, ['familyName', '姓']),
-    getValue_(data, ['givenName', '名']),
-    getValue_(data, ['familyNameKana', 'フリガナ(姓)']),
-    getValue_(data, ['givenNameKana', 'フリガナ(名)']),
-    getValue_(data, ['postalCode', '郵便番号']),
-    getValue_(data, ['phone', '電話番号']),
-    getValue_(data, ['address', '住所']),
-    getValue_(data, ['gender', '性別']),
-    getValue_(data, ['birthEra']),
-    getValue_(data, ['birthYear']),
-    getValue_(data, ['birthMonth']),
-    getValue_(data, ['birthDay']),
-    getValue_(data, ['pin', '暗証番号']),
-    getValue_(data, ['dm', 'DM']),
-    getValue_(data, ['machineNumber', '台番号']),
-    getValue_(data, ['agree', '利用規約同意']),
   ];
 }
 
@@ -124,17 +89,33 @@ function getValue_(data, keys) {
 }
 
 function ensureHeaderRow_(sheet, headers) {
+  const currentColumns = sheet.getMaxColumns();
+  const headerCount = headers.length;
+
+  if (currentColumns > headerCount) {
+    sheet.deleteColumns(headerCount + 1, currentColumns - headerCount);
+  } else if (currentColumns < headerCount) {
+    sheet.insertColumnsAfter(currentColumns, headerCount - currentColumns);
+  }
+
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
     return;
   }
 
-  const firstRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const firstRow = sheet.getRange(1, 1, 1, headerCount).getValues()[0];
   const firstRowText = firstRow.map((value) => String(value || '').trim());
   const shouldReplace = headers.some((header, index) => firstRowText[index] !== header);
 
   if (shouldReplace) {
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headerCount).setValues([headers]);
+  }
+}
+
+function pruneExtraColumns_(sheet, headerCount) {
+  const currentColumns = sheet.getMaxColumns();
+  if (currentColumns > headerCount) {
+    sheet.deleteColumns(headerCount + 1, currentColumns - headerCount);
   }
 }
 
