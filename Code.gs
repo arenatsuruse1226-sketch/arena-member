@@ -106,7 +106,11 @@ function normalizePayload_(payload) {
   normalized['フリガナ(名)'] = String(payload['フリガナ(名)'] ?? payload['givenNameKana'] ?? payload['givenNameKanji'] ?? '').trim();
   normalized['郵便番号'] = String(payload['郵便番号'] ?? payload['postalCode'] ?? '').trim();
   normalized['住所'] = String(payload['住所'] ?? payload['address'] ?? '').trim();
-  normalized['電話番号'] = String(payload['電話番号'] ?? payload['phone'] ?? '').trim();
+  let phoneValue = String(payload['電話番号'] ?? payload['phone'] ?? '').trim();
+  if (phoneValue && /^[0-9]+$/.test(phoneValue) && phoneValue.startsWith('0')) {
+    phoneValue = `'${phoneValue}`;
+  }
+  normalized['電話番号'] = phoneValue;
   normalized['性別'] = String(payload['性別'] ?? payload['gender'] ?? '').trim();
   
   // --- 生年月日の和暦自動フォーマット処理 ---
