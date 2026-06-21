@@ -449,8 +449,8 @@
           </div>
 
           <div class="consent-block">
-            <input type="checkbox" id="agree" name="agree" />
-            <label for="agree">プライバシーポリシーに同意しますか？ <a href="https://arena-world.co.jp/privacypolicy/" target="_blank">（プライバシーポリシー）</a></label>
+            <input type="checkbox" id="agree" name="agree" required />
+            <label for="agree">プライバシーポリシーに同意しますか？ <a href="https://arena-world.co.jp/privacypolicy/" target="_blank">（プライバシーポリシー）</a><span class="required-tag">必須</span></label>
           </div>
 
           <div class="submit-row">
@@ -569,6 +569,15 @@
 
     form.addEventListener('submit', async function (e) {
       e.preventDefault();
+
+      if (!this.agree.checked) {
+        successMessage.textContent = 'プライバシーポリシーへの同意が必要です。';
+        successMessage.style.display = 'block';
+        successMessage.style.color = '#d93025';
+        successMessage.style.background = 'rgba(217, 48, 37, 0.12)';
+        successMessage.style.border = '1px solid rgba(217, 48, 37, 0.24)';
+        return;
+      }
 
       const pin = this.pin.value.trim();
       if (!/^\d{4}$/.test(pin)) {
