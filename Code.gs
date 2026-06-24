@@ -1,5 +1,8 @@
 const SPREADSHEET_ID = '1sWrRdtkgQTjKPHO6iP42VscGOM_fHl9XFkVpnTGmt9Y';
 const SHEET_NAME = 'シート1';
+const LINE_CHANNEL_ACCESS_TOKEN = 'ここにLINE Messaging APIチャネルアクセストークンを入れてください';
+const LINE_TO_ID = 'ここに通知先のUser IDまたはGroup IDを入れてください';
+const LINE_PUSH_ENDPOINT = 'https://api.line.me/v2/bot/message/push';
 
 // A列からM列までの正しい見出しの順番を定義
 const EXPECTED_HEADERS = [
@@ -20,6 +23,7 @@ function doPost(e) {
     // 3. 整理された日本語データから、A〜M列の順番通りに並んだ行データを作る
     const row = buildRow_(data);
     sheet.appendRow(row);
+    sendLineNotification_(data);
     
     return jsonResponse_({
       status: 'success',
@@ -153,6 +157,55 @@ function normalizePayload_(payload) {
   }
 
   return normalized;
+}
+
+function sendLineNotification_(data) {
+  if (!LINE_CHANNEL_ACCESS_TOKEN || LINE_CHANNEL_ACCESS_TOKEN.startsWith('ここに')) {
+    return;
+  }
+  if (!LINE_TO_ID || LINE_TO_ID.startsWith('ここに')) {
+    return;
+  }
+
+  const messageParts = [
+    '【会員データ受信】',
+    `登録日時: ${data['登録日時'] || '—'}`,
+    `氏名: ${[data['姓'], data['名']].filter(Boolean).join(' ') || '—'}`,
+    `電話番号: ${data['電話番号'] || '—'}`,
+    `台番号: ${data['台番号'] || '—'}`,
+    `DM: ${data['DM'] || '—'}`
+  ];
+
+  const payload = JSON.stringify({
+    to: LINE_TO_ID,
+    messages: [
+      {
+        type: 'text',
+        text: messageParts.join('\n')
+      }
+    ]
+  });
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`
+    },
+    payload: payload,
+    muteHttpExceptions: true
+  };
+
+  const response = UrlFetchApp.fetch(LINE_PUSH_ENDPOINT, options);
+  const status = response.getResponseCode();
+  if (status !== 200) {
+    throw new Error(`LINE通知に失敗しました: ${response.getContentText()}`);
+  }
+}
+
+function authorizeUrlFetch() {
+  // この関数を実行すると、UrlFetchApp の権限承認ダイアログが出ます。
+  UrlFetchApp.fetch('https://www.google.com');
 }
 
 function jsonResponse_(data) {

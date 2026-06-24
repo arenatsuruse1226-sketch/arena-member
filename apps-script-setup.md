@@ -5,6 +5,8 @@
 3. `SHEET_NAME` を必要に応じて変更する。
 4. Apps Script を「ウェブアプリ」としてデプロイする。
 5. デプロイ後に表示される URL を `index.html` の `fetch` 先に設定する。
+6. `Code.gs` の `LINE_CHANNEL_ACCESS_TOKEN` に LINE Messaging API のチャネルアクセストークンを設定する。
+7. `Code.gs` の `LINE_TO_ID` に通知先のLINEユーザーIDまたはグループIDを設定する。
 
 ## 受信される主な列
 
