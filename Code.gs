@@ -1,215 +1,172 @@
+﻿// ===== 設定 =====
 const SPREADSHEET_ID = '1sWrRdtkgQTjKPHO6iP42VscGOM_fHl9XFkVpnTGmt9Y';
 const SHEET_NAME = 'シート1';
-const LINE_CHANNEL_ACCESS_TOKEN = 'ここにLINE Messaging APIチャネルアクセストークンを入れてください';
-const LINE_TO_ID = 'ここに通知先のUser IDまたはGroup IDを入れてください';
-const LINE_PUSH_ENDPOINT = 'https://api.line.me/v2/bot/message/push';
 
-// A列からM列までの正しい見出しの順番を定義
+// ★ここに現在使用中のチャネルアクセストークンを貼り付け
+const LINE_CHANNEL_ACCESS_TOKEN = 'ここにLINE Messaging APIチャネルアクセストークンを入れてください';
+const LINE_API_URL = 'https://api.line.me/v2/bot/message/push';
+const LINE_TO_ID = 'ここに通知先のUser IDまたはGroup IDを入れてください';
+
+// A列からM列までの見出し
 const EXPECTED_HEADERS = [
-  '登録日時', '姓', '名', 'フリガナ(姓)', 'フリガナ(名)', 
-  '郵便番号', '住所', '電話番号', '性別', '生年月日', '暗証番号', 'DM', '台番号'
+  '登録日時','姓','名','フリガナ(姓)','フリガナ(名)',
+  '郵便番号','住所','電話番号','性別','生年月日',
+  '暗証番号','DM','台番号'
 ];
 
-function doPost(e) {
-  try {
-    const sheet = getTargetSheet_();
-    
-    // 1. 送られてきたデータを綺麗な日本語キーに統一・和暦に変換する
-    const data = normalizePayload_(e && e.parameter ? e.parameter : {});
-    
-    // 2. 見出し行の数をA〜M列（13列）に矯正し、余分な列（N列以降）を削除する
+function doPost(e){
+  try{
+    const sheet=getTargetSheet_();
+    const data=normalizePayload_(extractPayload_(e));
     ensureHeaderRow_(sheet);
-    
-    // 3. 整理された日本語データから、A〜M列の順番通りに並んだ行データを作る
-    const row = buildRow_(data);
+    const row=buildRow_(data);
     sheet.appendRow(row);
-    sendLineNotification_(data);
-    
-    return jsonResponse_({
-      status: 'success',
-      message: 'saved'
-    });
-  } catch (error) {
-    return jsonResponse_({
-      status: 'error',
-      message: error && error.message ? error.message : 'Unknown error'
-    });
+
+    // LINE通知
+    sendLineNotification(data);
+
+    return jsonResponse_({status:'success',message:'saved'});
+  }catch(err){
+    return jsonResponse_({status:'error',message:err.message});
   }
 }
 
-function doGet() {
-  return jsonResponse_({
-    status: 'ok',
-    message: 'This endpoint accepts POST requests.'
+function doGet(){
+  return jsonResponse_({status:'ok',message:'This endpoint accepts POST requests.'});
+}
+
+function doOptions(){
+  return ContentService
+    .createTextOutput('')
+    .setMimeType(ContentService.MimeType.TEXT)
+    .setHeader('Access-Control-Allow-Origin', '*')
+    .setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    .setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+function extractPayload_(e){
+  if(e && e.parameter && Object.keys(e.parameter).length>0){
+    return e.parameter;
+  }
+  const postData = e && e.postData && e.postData.contents ? e.postData.contents : '';
+  if(!postData) return {};
+  const params = {};
+  postData.split('&').forEach(pair=>{
+    if(!pair) return;
+    const [rawKey, ...rawValue] = pair.split('=');
+    const key = decodeURIComponent(rawKey.replace(/\+/g,' '));
+    const value = decodeURIComponent((rawValue.join('=')||'').replace(/\+/g,' '));
+    params[key]=value;
   });
+  return params;
 }
 
-function getTargetSheet_() {
-  if (SPREADSHEET_ID === 'ここにスプレッドシートIDを入れてください') {
-    throw new Error('SPREADSHEET_ID を設定してください');
-  }
-  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = spreadsheet.getSheetByName(SHEET_NAME) || spreadsheet.insertSheet(SHEET_NAME);
-  return sheet;
+function getTargetSheet_(){
+  const ss=SpreadsheetApp.openById(SPREADSHEET_ID);
+  return ss.getSheetByName(SHEET_NAME)||ss.insertSheet(SHEET_NAME);
 }
 
-/**
- * 修正：整理された日本語データから、EXPECTED_HEADERSの順番通りに値を並べる
- */
-function buildRow_(data) {
-  return EXPECTED_HEADERS.map(header => data[header] ?? '');
+function buildRow_(data){
+  return EXPECTED_HEADERS.map(h=>data[h]??'');
 }
 
-function getValue_(data, keys) {
-  for (const key of keys) {
-    const value = String(data[key] ?? '').trim();
-    if (value) {
-      return value;
-    }
+function getValue_(data,keys){
+  for(const k of keys){
+    const v=String(data[k]??'').trim();
+    if(v) return v;
   }
   return '';
 }
 
-/**
- * シートの見出しをA〜M列（13列）に固定し、不要な右側の列を削除する
- */
-function ensureHeaderRow_(sheet) {
-  const currentColumns = sheet.getMaxColumns();
-  const headerCount = EXPECTED_HEADERS.length;
+function ensureHeaderRow_(sheet){
+  const cols=sheet.getMaxColumns();
+  const hc=EXPECTED_HEADERS.length;
+  if(cols>hc) sheet.deleteColumns(hc+1,cols-hc);
+  if(cols<hc) sheet.insertColumnsAfter(cols,hc-cols);
 
-  if (currentColumns > headerCount) {
-    sheet.deleteColumns(headerCount + 1, currentColumns - headerCount);
-  } else if (currentColumns < headerCount) {
-    sheet.insertColumnsAfter(currentColumns, headerCount - currentColumns);
-  }
-
-  if (sheet.getLastRow() === 0) {
+  if(sheet.getLastRow()==0){
     sheet.appendRow(EXPECTED_HEADERS);
     return;
   }
-
-  const firstRow = sheet.getRange(1, 1, 1, headerCount).getValues()[0];
-  const firstRowText = firstRow.map(value => String(value || '').trim());
-  const shouldReplace = EXPECTED_HEADERS.some((header, index) => header !== firstRowText[index]);
-
-  if (shouldReplace) {
-    sheet.getRange(1, 1, 1, headerCount).setValues([EXPECTED_HEADERS]);
-  }
+  sheet.getRange(1,1,1,hc).setValues([EXPECTED_HEADERS]);
 }
 
-/**
- * 外部からのデータを日本語に変換し、生年月日を和暦に補正する
- */
-function normalizePayload_(payload) {
-  const normalized = {};
+function normalizePayload_(payload){
+  const d={};
 
-  // 各項目の文字列化と表記揺れの吸収
-  normalized['姓'] = String(payload['姓'] ?? payload['familyName'] ?? '').trim();
-  normalized['名'] = String(payload['名'] ?? payload['givenName'] ?? '').trim();
-  normalized['フリガナ(姓)'] = String(payload['フリガナ(姓)'] ?? payload['familyNameKana'] ?? payload['familyNameKanji'] ?? '').trim();
-  normalized['フリガナ(名)'] = String(payload['フリガナ(名)'] ?? payload['givenNameKana'] ?? payload['givenNameKanji'] ?? '').trim();
-  normalized['郵便番号'] = String(payload['郵便番号'] ?? payload['postalCode'] ?? '').trim();
-  normalized['住所'] = String(payload['住所'] ?? payload['address'] ?? '').trim();
-  let phoneValue = String(payload['電話番号'] ?? payload['phone'] ?? '').trim();
-  if (phoneValue && /^[0-9]+$/.test(phoneValue) && phoneValue.startsWith('0')) {
-    phoneValue = `'${phoneValue}`;
-  }
-  normalized['電話番号'] = phoneValue;
-  normalized['性別'] = String(payload['性別'] ?? payload['gender'] ?? '').trim();
-  
-  // --- 生年月日の和暦自動フォーマット処理 ---
-  const bEra = String(payload['birthEra'] || payload['era'] || '').trim();
-  const bYear = String(payload['birthYear'] || '').trim();
-  const bMonth = String(payload['birthMonth'] || '').trim();
-  const bDay = String(payload['birthDay'] || '').trim();
+  d['姓']=String(payload['姓']??payload['familyName']??'').trim();
+  d['名']=String(payload['名']??payload['givenName']??'').trim();
+  d['フリガナ(姓)']=String(payload['フリガナ(姓)']??payload['familyNameKana']??'').trim();
+  d['フリガナ(名)']=String(payload['フリガナ(名)']??payload['givenNameKana']??'').trim();
+  d['郵便番号']=String(payload['郵便番号']??payload['postalCode']??'').trim();
+  d['住所']=String(payload['住所']??payload['address']??'').trim();
 
-  if (bEra && bYear && bMonth && bDay) {
-    const month = bMonth.padStart(2, '0');
-    const day = bDay.padStart(2, '0');
-    normalized['生年月日'] = `${bEra}${bYear}年${month}月${day}日`;
-  } else {
-    const rawBirth = getValue_(payload, ['生年月日', 'birthDate', 'birthday']);
-    if (rawBirth) {
-      const dateObj = new Date(rawBirth);
-      if (!isNaN(dateObj.getTime())) {
-        normalized['生年月日'] = Utilities.formatDate(dateObj, 'Asia/Tokyo', 'yyyy/MM/dd');
-      } else {
-        normalized['生年月日'] = rawBirth;
-      }
-    } else {
-      normalized['生年月日'] = '';
-    }
-  }
-  // -----------------------------------------
+  let phone=String(payload['電話番号']??payload['phone']??'').trim();
+  if(phone && /^[0-9]+$/.test(phone) && phone.startsWith('0')) phone="'"+phone;
+  d['電話番号']=phone;
 
-  normalized['暗証番号'] = String(payload['暗証番号'] ?? payload['pin'] ?? '').trim();
-  normalized['DM'] = String(payload['DM'] ?? payload['dm'] ?? '').trim();
-  normalized['台番号'] = String(payload['台番号'] ?? payload['machineNumber'] ?? '').trim();
+  d['性別']=String(payload['性別']??payload['gender']??'').trim();
 
-  // 日時の自動補完
-  if (!normalized['登録日時']) {
-    const rawDate = payload['登録日時'] ?? payload['submittedAt'];
-    if (rawDate) {
-      normalized['登録日時'] = String(rawDate).trim();
-    } else {
-      normalized['登録日時'] = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
-    }
+  const era=String(payload['birthEra']||payload['era']||'').trim();
+  const y=String(payload['birthYear']||'').trim();
+  const m=String(payload['birthMonth']||'').trim();
+  const day=String(payload['birthDay']||'').trim();
+
+  if(era&&y&&m&&day){
+    d['生年月日']=`${era}${y}年${m.padStart(2,'0')}月${day.padStart(2,'0')}日`;
+  }else{
+    d['生年月日']=String(payload['生年月日']??payload['birthDate']??'').trim();
   }
 
-  return normalized;
+  d['暗証番号']=String(payload['暗証番号']??payload['pin']??'').trim();
+  d['DM']=String(payload['DM']??payload['dm']??'').trim();
+  d['台番号']=String(payload['台番号']??payload['machineNumber']??'').trim();
+  d['登録日時']=Utilities.formatDate(new Date(),'Asia/Tokyo','yyyy/MM/dd HH:mm:ss');
+
+  return d;
 }
 
-function sendLineNotification_(data) {
-  if (!LINE_CHANNEL_ACCESS_TOKEN || LINE_CHANNEL_ACCESS_TOKEN.startsWith('ここに')) {
-    return;
-  }
-  if (!LINE_TO_ID || LINE_TO_ID.startsWith('ここに')) {
-    return;
-  }
+function sendLineNotification(data){
+  if(!LINE_CHANNEL_ACCESS_TOKEN || LINE_CHANNEL_ACCESS_TOKEN.startsWith('ここに')) return;
+  if(!LINE_TO_ID || LINE_TO_ID.startsWith('ここに')) return;
 
-  const messageParts = [
-    '【会員データ受信】',
-    `登録日時: ${data['登録日時'] || '—'}`,
-    `氏名: ${[data['姓'], data['名']].filter(Boolean).join(' ') || '—'}`,
-    `電話番号: ${data['電話番号'] || '—'}`,
-    `台番号: ${data['台番号'] || '—'}`,
-    `DM: ${data['DM'] || '—'}`
-  ];
-
-  const payload = JSON.stringify({
+  const payload={
     to: LINE_TO_ID,
-    messages: [
-      {
-        type: 'text',
-        text: messageParts.join('\n')
-      }
-    ]
-  });
+    messages:[{
+      type:'text',
+      text:
+`新規会員登録
 
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    headers: {
-      Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`
-    },
-    payload: payload,
-    muteHttpExceptions: true
+氏名：${data['姓']} ${data['名']}
+フリガナ：${data['フリガナ(姓)']} ${data['フリガナ(名)']}
+郵便番号：${data['郵便番号']}
+住所：${data['住所']}
+電話番号：${data['電話番号']}
+性別：${data['性別']}
+生年月日：${data['生年月日']}
+暗証番号：${data['暗証番号']}
+DM：${data['DM']}
+台番号：${data['台番号']}
+登録日時：${data['登録日時']}`
+    }]
   };
 
-  const response = UrlFetchApp.fetch(LINE_PUSH_ENDPOINT, options);
-  const status = response.getResponseCode();
-  if (status !== 200) {
-    throw new Error(`LINE通知に失敗しました: ${response.getContentText()}`);
-  }
+  UrlFetchApp.fetch(LINE_API_URL,{ 
+    method:'post',
+    contentType:'application/json',
+    headers:{
+      Authorization:'Bearer '+LINE_CHANNEL_ACCESS_TOKEN
+    },
+    payload:JSON.stringify(payload),
+    muteHttpExceptions:true
+  });
 }
 
-function authorizeUrlFetch() {
-  // この関数を実行すると、UrlFetchApp の権限承認ダイアログが出ます。
-  UrlFetchApp.fetch('https://www.google.com');
-}
-
-function jsonResponse_(data) {
+function jsonResponse_(data){
   return ContentService
     .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeader('Access-Control-Allow-Origin','*')
+    .setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS')
+    .setHeader('Access-Control-Allow-Headers','Content-Type');
 }
