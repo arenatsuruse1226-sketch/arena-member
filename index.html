@@ -21,35 +21,6 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: "Arial", "Helvetica Neue", sans-serif;
-    }
-
-    body {
-      min-height: 100vh;
-      background:
-        radial-gradient(circle at top, rgba(26, 115, 232, 0.14), transparent 24%),
-        var(--bg);
-      color: var(--text-main);
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      padding: 28px 16px;
-    }
-
-    .form-shell {
-      width: 100%;
-      max-width: 760px;
-      background: #fff;
-      border-radius: 10px;
-      border: 1px solid rgba(218, 220, 224, 0.9);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-    }
-
-    .top-banner {
-      background: linear-gradient(180deg, #1f6ff0, #1a73e8);
-      padding: 26px 28px 20px;
-      color: #fff;
     }
 
     .top-banner .eyebrow {
@@ -568,7 +539,7 @@
       populateOptions(birthDay, 1, 31);
     }
 
-    form.addEventListener('submit', async function (e) {
+    form.addEventListener('submit', function (e) {
       e.preventDefault();
 
       if (!this.agree.checked) {
@@ -590,42 +561,39 @@
         return;
       }
 
-      const formData = new FormData(this);
-      const payload = {};
-      formData.forEach((value, key) => {
-        payload[key] = value;
-      });
-      payload.agree = this.agree.checked ? '同意' : '';
+      // フォームを通常の POST で送信してブラウザ側の CORS を回避します。
+      // 既存のフォーム要素をそのまま使うため、action と method を設定します。
+      this.action = submitEndpoint;
+      this.method = 'POST';
 
-      try {
-        const response = await fetch(submitEndpoint, {
-          method: 'POST',
-          body: new URLSearchParams(payload),
-        });
-        const result = await response.json();
+      // 同意の値をサーバーと合わせる
+      if (this.agree) this.agree.value = this.agree.checked ? '同意' : '';
 
-        if (!response.ok || result.status !== 'success') {
-          throw new Error(result.message || '送信中にエラーが発生しました。');
-        }
-
-        const familyName = form.familyName.value.trim();
-        const givenName = form.givenName.value.trim();
-        const fullName = [familyName, givenName].filter(Boolean).join(' ');
-        successMessage.textContent = fullName ? fullName + ' 様、会員登録の入力を受け付けました。' : '会員登録の入力を受け付けました。';
-        successMessage.style.color = 'var(--success)';
-        successMessage.style.background = 'rgba(24, 128, 56, 0.12)';
-        successMessage.style.border = '1px solid rgba(24, 128, 56, 0.24)';
-        successMessage.style.display = 'block';
-
-        form.reset();
-        addressInput.placeholder = '郵便番号を入力後、続けて番地・建物名をご入力ください';
-      } catch (error) {
-        successMessage.textContent = error.message || '送信に失敗しました。再度お試しください。';
-        successMessage.style.display = 'block';
-        successMessage.style.color = '#d93025';
-        successMessage.style.background = 'rgba(217, 48, 37, 0.12)';
-        successMessage.style.border = '1px solid rgba(217, 48, 37, 0.24)';
+      // 送信をバックグラウンドで行うために隠し iframe を作る
+      const iframeName = 'submit_target_iframe';
+      let iframe = document.getElementById(iframeName);
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.id = iframeName;
+        iframe.name = iframeName;
+        document.body.appendChild(iframe);
       }
+      this.target = iframeName;
+
+      // 楽観的に成功メッセージを表示してフォームをリセットします。
+      const familyName = this.familyName.value.trim();
+      const givenName = this.givenName.value.trim();
+      const fullName = [familyName, givenName].filter(Boolean).join(' ');
+      successMessage.textContent = fullName ? fullName + ' 様、会員登録の入力を受け付けました。' : '会員登録の入力を受け付けました。';
+      successMessage.style.color = 'var(--success)';
+      successMessage.style.background = 'rgba(24, 128, 56, 0.12)';
+      successMessage.style.border = '1px solid rgba(24, 128, 56, 0.24)';
+      successMessage.style.display = 'block';
+
+      this.submit();
+      this.reset();
+      addressInput.placeholder = '郵便番号を入力後、続けて番地・建物名をご入力ください';
     });
   </script>
 </body>
